@@ -51,11 +51,11 @@ def get_stonks_info(ticker, TOKEN):
             print(f"ticker ticker not found")
 
 
-def get_candles(TOKEN, figi):
+def get_candles(TOKEN, figi, time):
     with Client(TOKEN) as client:
         for candle in client.get_all_candles(
                 figi=figi,
-                from_=now() - timedelta(days=365),
+                from_=now() - timedelta(time),
                 interval=CandleInterval.CANDLE_INTERVAL_2_MIN,
         ):
             print(candle)

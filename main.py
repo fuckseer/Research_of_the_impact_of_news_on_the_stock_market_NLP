@@ -5,3 +5,5 @@ with open('companies.pkl', 'rb') as f:
 
 with open('urls.pkl', 'rb') as f:
     urls = pickle.load(f)
+
+print(urls)
