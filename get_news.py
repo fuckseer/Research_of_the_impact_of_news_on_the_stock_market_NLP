@@ -1,7 +1,14 @@
 import csv
+import re
+
 import requests
 from bs4 import BeautifulSoup
 import feedparser
+
+import urllib
+from selenium import webdriver
+import random
+import urllib.request
 
 
 def save_data(article_list):
@@ -13,7 +20,7 @@ def save_data(article_list):
 
 def scrap_text(name, link):
     r = requests.get(link)
-    soup = BeautifulSoup(r.text, features='lxml')
+    soup = BeautifulSoup(r.content, features='lxml')
 
     if name == 'Investing':
         div = soup.find('div', class_='WYSIWYG articlePage')
@@ -50,14 +57,15 @@ def scrap_text(name, link):
         return article_text
 
     elif name == 'Роснефть':
-        div = soup.find('div', {'class': 'common-text'})
-        paragraphs = div.find_all('p')
-        article_text = ""
-
-        for paragraph in paragraphs:
-            article_text += paragraph.text
-
-        return article_text
+        # print(soup.text)
+        # div = soup.find('div', {'class': 'common-text'})
+        # paragraphs = div.find_all('p')
+        # article_text = ""
+        #
+        # for paragraph in paragraphs:
+        #     article_text += paragraph.text
+        #
+        # return article_text
 
     elif name == 'Лукойл':
         div = soup.find('div', {'class': 'content'})
@@ -75,11 +83,9 @@ def scrap_rss(name, url):
 
     try:
         feed = feedparser.parse(url)
-        #print(feed.items())
         for a in feed['items']:
             title = a.title
             link = a.link
-            print(link)
             published = a.published
             text = scrap_text(name, link)
             article = {
@@ -89,12 +95,28 @@ def scrap_rss(name, url):
                 'text': text.replace('\xa0', ' ')
             }
             article_list.append(article)
-            print(article_list)
         return save_data(article_list)
     except Exception as e:
         print('The scraping is failed. Exception:')
         print(e)
 
 
-scrap_rss('Finam',
-          'https://www.finam.ru/analysis/conews/rsspoint/')
+def scrap_rss_rosneft(url):
+    driver = webdriver.Chrome()
+    driver.get(url)
+    source_data = driver.page_source
+    soup = BeautifulSoup(source_data, features='lxml')
+
+    for item in soup.find_all('item'):
+        title = item.title.text
+        link = item.find('link').next_sibling.strip()
+        pub_date = item.pubdate.text
+        article_text = ''
+        description = item.find_all('yandex:full-text')
+        for paragraph in description:
+            article_text += paragraph.get_text()
+
+        article_text = re.sub('<.*?>|&.*?;', '', article_text)
+
+        return save_data(article_text)
+
