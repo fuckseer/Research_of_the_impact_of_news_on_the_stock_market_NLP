@@ -5,10 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import feedparser
 
-import urllib
 from selenium import webdriver
-import random
-import urllib.request
 
 
 def save_data(article_list):
@@ -24,40 +21,27 @@ def scrap_text(name, link):
 
     if name == 'Investing':
         div = soup.find('div', class_='WYSIWYG articlePage')
-        paragraphs = div.find_all('p')
-        article_text = ""
-
-        for paragraph in paragraphs:
-            article_text += paragraph.text
-
+        article_text = join_paragraphs(div)
         index_start = article_text.find('\n')
         index_finish = article_text.find("Читайте оригинальную статью")
-        print(article_text)
+
         return article_text[index_start + 1:index_finish]
 
     elif name == 'Finam':
         print(soup.text)
         div = soup.find('div', class_='clearfix mb2x')
-        paragraphs = div.find_all('p')
-        article_text = ""
-
-        for paragraph in paragraphs:
-            article_text += paragraph.text
+        article_text = join_paragraphs(div)
 
         return article_text
 
     elif name == 'Газпром':
         div = soup.find('div', {'class': 'text-block'})
-        paragraphs = div.find_all('p')
-        article_text = ""
-
-        for paragraph in paragraphs:
-            article_text += paragraph.text
+        article_text = join_paragraphs(div)
 
         return article_text
 
     elif name == 'Роснефть':
-        # print(soup.text)
+        print(soup.text)
         # div = soup.find('div', {'class': 'common-text'})
         # paragraphs = div.find_all('p')
         # article_text = ""
@@ -69,13 +53,21 @@ def scrap_text(name, link):
 
     elif name == 'Лукойл':
         div = soup.find('div', {'class': 'content'})
-        paragraphs = div.find_all('p')
-        article_text = ""
-
-        for paragraph in paragraphs:
-            article_text += paragraph.text
+        article_text = join_paragraphs(div)
 
         return article_text
+
+    else:
+        print('Некорректное имя источника')
+
+
+
+def join_paragraphs(div):
+    paragraphs = div.find_all('p')
+    article_text = ""
+    for paragraph in paragraphs:
+        article_text += paragraph.text
+    return article_text
 
 
 def scrap_rss(name, url):
