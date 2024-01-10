@@ -35,12 +35,12 @@ def scrap_text(name, link):
             return article_text
 
         elif name == 'Газпром':
-            div = soup.find('div', {'class': 'text-block'})
+            div = soup.find('div', class_='text-block')
             article_text = join_paragraphs(div)
 
             return article_text
         elif name == 'Лукойл':
-            div = soup.find('div', {'class': 'content'})
+            div = soup.find('div', class_='content')
             article_text = join_paragraphs(div)
 
             return article_text
@@ -67,9 +67,9 @@ def join_paragraphs(div):
 
 
 def scrap_rss(name, url):
-    if name == 'Роснефть':
-        data = scrap_rss_rosneft(url)
     article_list = []
+    if name == 'Роснефть':
+        return save_data(scrap_rss_rosneft(url))
 
     try:
         feed = feedparser.parse(url)
@@ -96,7 +96,7 @@ def scrap_rss_rosneft(url):
     driver.get(url)
     source_data = driver.page_source
     soup = BeautifulSoup(source_data, features='lxml')
-
+    article_list = []
     for item in soup.find_all('item'):
         title = item.title.text
         link = item.find('link').next_sibling.strip()
@@ -107,6 +107,13 @@ def scrap_rss_rosneft(url):
             article_text += paragraph.get_text()
 
         article_text = re.sub('<.*?>|&.*?;', '', article_text)
+        article = {
+            'title': title,
+            'link': link,
+            'published': pub_date,
+            'text': article_text
+        }
+        article_list.append(article)
 
-        return save_data(article_text)
+        return article_list
 
