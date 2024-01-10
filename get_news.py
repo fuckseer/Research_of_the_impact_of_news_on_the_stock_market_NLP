@@ -16,50 +16,46 @@ def save_data(article_list):
 
 
 def scrap_text(name, link):
-    r = requests.get(link)
-    soup = BeautifulSoup(r.content, features='lxml')
+    try:
+        r = requests.get(link)
+        soup = BeautifulSoup(r.content, features='lxml')
+        if name == 'Investing':
+            div = soup.find('div', class_='WYSIWYG articlePage')
+            article_text = join_paragraphs(div)
+            index_start = article_text.find('\n')
+            index_finish = article_text.find("Читайте оригинальную статью")
 
-    if name == 'Investing':
-        div = soup.find('div', class_='WYSIWYG articlePage')
-        article_text = join_paragraphs(div)
-        index_start = article_text.find('\n')
-        index_finish = article_text.find("Читайте оригинальную статью")
+            return article_text[index_start + 1:index_finish]
 
-        return article_text[index_start + 1:index_finish]
+        elif name == 'Finam':
+            print(soup.text)
+            div = soup.find('div', class_='clearfix mb2x')
+            article_text = join_paragraphs(div)
 
-    elif name == 'Finam':
-        print(soup.text)
-        div = soup.find('div', class_='clearfix mb2x')
-        article_text = join_paragraphs(div)
+            return article_text
 
-        return article_text
+        elif name == 'Газпром':
+            div = soup.find('div', {'class': 'text-block'})
+            article_text = join_paragraphs(div)
 
-    elif name == 'Газпром':
-        div = soup.find('div', {'class': 'text-block'})
-        article_text = join_paragraphs(div)
+            return article_text
+        elif name == 'Лукойл':
+            div = soup.find('div', {'class': 'content'})
+            article_text = join_paragraphs(div)
 
-        return article_text
+            return article_text
 
-    elif name == 'Роснефть':
-        print(soup.text)
-        # div = soup.find('div', {'class': 'common-text'})
-        # paragraphs = div.find_all('p')
-        # article_text = ""
-        #
-        # for paragraph in paragraphs:
-        #     article_text += paragraph.text
-        #
-        # return article_text
-
-    elif name == 'Лукойл':
-        div = soup.find('div', {'class': 'content'})
-        article_text = join_paragraphs(div)
-
-        return article_text
-
-    else:
-        print('Некорректное имя источника')
-
+        else:
+            raise ValueError('Некорректное имя источника')
+    except ValueError as e:
+        print(e)
+        return None
+    except requests.exceptions.RequestException:
+        print('Ошибка при запросе страницы')
+        return None
+    except AttributeError:
+        print('Элементы не найдены на странице')
+        return None
 
 
 def join_paragraphs(div):
@@ -71,6 +67,8 @@ def join_paragraphs(div):
 
 
 def scrap_rss(name, url):
+    if name == 'Роснефть':
+        data = scrap_rss_rosneft(url)
     article_list = []
 
     try:
