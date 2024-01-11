@@ -1,6 +1,6 @@
-import csv
 import re
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import feedparser
@@ -9,17 +9,14 @@ from selenium import webdriver
 
 
 def save_data(article_list):
-    with open('articles.csv', 'w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=article_list[0])
-        writer.writeheader()
-        writer.writerows(article_list)
+    pd.DataFrame(article_list).to_csv('articles.csv', mode='a')
 
 
 def scrap_text(name, link):
     try:
-        r = requests.get(link)
-        soup = BeautifulSoup(r.content, features='lxml')
         if name == 'Investing':
+            r = requests.get(link)
+            soup = BeautifulSoup(r.content, features='lxml')
             div = soup.find('div', class_='WYSIWYG articlePage')
             article_text = join_paragraphs(div)
             index_start = article_text.find('\n')
@@ -28,18 +25,25 @@ def scrap_text(name, link):
             return article_text[index_start + 1:index_finish]
 
         elif name == 'Finam':
-            print(soup.text)
+            driver = webdriver.Chrome()
+            driver.get(link)
+            source_data = driver.page_source
+            soup = BeautifulSoup(source_data, features='lxml')
             div = soup.find('div', class_='clearfix mb2x')
             article_text = join_paragraphs(div)
 
             return article_text
 
         elif name == 'Газпром':
+            r = requests.get(link)
+            soup = BeautifulSoup(r.content, features='lxml')
             div = soup.find('div', class_='text-block')
             article_text = join_paragraphs(div)
 
             return article_text
         elif name == 'Лукойл':
+            r = requests.get(link)
+            soup = BeautifulSoup(r.content, features='lxml')
             div = soup.find('div', class_='content')
             article_text = join_paragraphs(div)
 
@@ -82,8 +86,9 @@ def scrap_rss(name, url):
                 'title': title,
                 'link': link,
                 'published': published,
-                'text': text.replace('\xa0', ' ')
+                'text': text
             }
+            print(article)
             article_list.append(article)
         return save_data(article_list)
     except Exception as e:
@@ -113,7 +118,10 @@ def scrap_rss_rosneft(url):
             'published': pub_date,
             'text': article_text
         }
+        print(article)
         article_list.append(article)
 
         return article_list
 
+
+scrap_rss('Finam', 'https://www.finam.ru/analysis/conews/rsspoint/')
