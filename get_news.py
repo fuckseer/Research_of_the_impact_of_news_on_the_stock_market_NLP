@@ -1,4 +1,7 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+import time
 
 import pandas as pd
 import requests
@@ -6,6 +9,9 @@ from bs4 import BeautifulSoup
 import feedparser
 
 from selenium import webdriver
+from selenium.common import MoveTargetOutOfBoundsException
+from selenium.webdriver import ActionChains, Keys
+from selenium.webdriver.common.by import By
 
 
 def save_data(article_list):
@@ -124,4 +130,116 @@ def scrap_rss_rosneft(url):
         return article_list
 
 
-scrap_rss('Finam', 'https://www.finam.ru/analysis/conews/rsspoint/')
+def configure_driver():
+    """Configures and returns a headless Chrome WebDriver."""
+    driver_options = webdriver.ChromeOptions()
+    driver_options.headless = True
+    return webdriver.Chrome(options=driver_options)
+
+
+def scrape_article_content(url):
+    """Scrapes and returns the content of a news article."""
+    soup = BeautifulSoup(requests.get(url).content, "html.parser")
+    paragraphs = soup.find_all("p")
+    full_text = " ".join(p.get_text() for p in paragraphs)
+    publication_date = soup.find("time")["datetime"]
+    return full_text, publication_date
+
+
+def scrape_news_article(driver, current_index):
+    """Scrapes a single news article."""
+    title_element = driver.find_element(By.XPATH,
+                                        f'//*[@id="__next"]/div[2]/div[2]/div[2]/div[1]/div[2]/ul/li[{current_index}]/article/div/a')
+    title = title_element.text
+
+    driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});",
+                          title_element)
+    time.sleep(0.3)
+
+    author = driver.find_element(By.XPATH,
+                                 f'//*[@id="__next"]/div[2]/div[2]/div[2]/div[1]/div[2]/ul/li[{current_index}]/article/div/ul/li[1]/span[2]').text
+
+    if author != 'Investing.com':
+        title_element.click()
+        time.sleep(0.3)
+        read_more_link = driver.find_element(By.PARTIAL_LINK_TEXT, 'Читать далее')
+        url = read_more_link.get_attribute('href')
+        full_text, publication_date = scrape_article_content(url)
+        actions = ActionChains(driver)
+        actions.move_by_offset(10, 100).perform()
+        time.sleep(0.3)
+        actions.click().perform()
+
+    else:
+        title_element.click()
+        time.sleep(0.3)
+        url = driver.current_url
+        paragraphs = driver.find_elements(By.TAG_NAME, 'p')
+        full_text = " ".join(p.text for p in paragraphs)
+        publication_date = driver.find_element(By.XPATH, '//*[@id="leftColumn"]/div[3]/span').text
+        driver.execute_script("window.history.go(-1)")
+
+
+    return title, full_text, publication_date, url
+
+
+def process_stock(stock, page=1, look_back_days=3, start_index=1):
+    driver = configure_driver()
+    news_df = pd.DataFrame(columns=['Title', 'Date', 'Link', 'Text', 'Stock'])
+
+    try:
+        news_url = 'https://ru.investing.com/equities/{}_rts-news/{}'.format(stock.lower(), page)
+        driver.get(news_url)
+        time.sleep(0.3)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(0.3)
+
+        current_index = start_index
+        while True:
+            try:
+                if current_index > 10:
+
+                    next_button = driver.find_element(By.XPATH,
+                                                      '//*[@id="__next"]/div[2]/div[2]/div[2]/div[1]/div[3]/button[2]')
+                    driver.execute_script("window.scrollTo(0, 800);")
+                    driver.implicitly_wait(0.3)
+                    next_button.click()
+                    time.sleep(0.3)
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    current_index = 1
+                    page += 1
+
+                title, full_text, publication_date, url = scrape_news_article(driver, current_index)
+                new_row = pd.DataFrame([{'Title': title, 'Date': publication_date, 'Link': url, 'Text': full_text, 'Stock': stock}])
+                new_row.to_csv('news_2.csv', mode='a', index=False, header=False)
+                news_df = pd.concat([news_df, new_row], ignore_index=True)
+                print(news_df, current_index)
+                current_index += 1
+
+            except Exception as e:
+                print(e)
+                driver.quit()
+                process_stock(stock, page, look_back_days, current_index+1)
+
+            if len(news_df) >= 5000:
+                break
+
+    finally:
+        driver.quit()
+
+    return news_df
+
+
+def scrape_investing_news(stock, stock_2, stock_3, stock_4, stock_5, page=1, look_back_days=3, start_index=1):
+    stocks_to_process = [stock, stock_2, stock_3, stock_4, stock_5]
+
+    with ThreadPoolExecutor(max_workers=len(stocks_to_process)) as executor:
+        results = executor.map(process_stock, stocks_to_process, [page]*len(stocks_to_process),
+                               [look_back_days]*len(stocks_to_process), [start_index]*len(stocks_to_process))
+
+    combined_df = pd.concat(results, ignore_index=True)
+    return combined_df
+
+
+df = scrape_investing_news('gazprom', 'novatek', 'rosneft', 'tatneft', 'lukoil', page=1, look_back_days=3, start_index=1)
+df = df.to_csv('news_final.csv')
