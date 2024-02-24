@@ -1,8 +1,11 @@
+import os
+
+import pytz
 from tinkoff.invest import Client, SecurityTradingStatus
 from tinkoff.invest.async_services import InstrumentsService
 from tinkoff.invest.utils import quotation_to_decimal
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from tinkoff.invest import CandleInterval
 from tinkoff.invest.utils import now
 
@@ -43,21 +46,34 @@ def get_stonks_info(ticker, TOKEN):
                 break
 
         if ticker_info:
-            figi = ticker_info["figi"]
-            print(f"ticker have figi=figi")
-            print(f"Additional info for this ticker ticker:")
-            print(ticker_info)
+            return ticker_info["figi"]
         else:
-            print(f"ticker ticker not found")
+            print(f"ticker not found")
 
-
+def convert_to_units_nano(quotation):
+    return float(str(quotation.units) + '.' + str(quotation.nano))
 def get_candles(TOKEN, figi, time):
+    time = datetime.strptime(time, '%Y-%m-%d %H:%M:%S.%f')
+    difference = datetime.now() - time
+    days_difference = difference.days
+    candles_data = []
     with Client(TOKEN) as client:
         for candle in client.get_all_candles(
                 figi=figi,
-                from_=now() - timedelta(time),
-                interval=CandleInterval.CANDLE_INTERVAL_2_MIN,
+                from_=now() - timedelta(days=days_difference),
+                interval=CandleInterval.CANDLE_INTERVAL_10_MIN,
         ):
-            print(candle)
+            candle_dict = {
+                'open': convert_to_units_nano(candle.open),
+                'high': convert_to_units_nano(candle.high),
+                'low': convert_to_units_nano(candle.low),
+                'close': convert_to_units_nano(candle.close),
+                'volume': candle.volume,
+                'time': candle.time
+            }
+            candles_data.append(candle_dict)
+            print(candles_data)
 
+            return candles_data
     return 0
+
